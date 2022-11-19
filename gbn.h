@@ -7,11 +7,14 @@
 
 #define FILE_NAME_LEN 256
 #define BUF_SIZE 500
+
+// Define Packet type names
 #define SYN 0
 #define ACK 1
 #define NAK 2
 #define DATA 3
 #define FIN 4
+
 #define SIGTYPE SIGALRM
 #define TIMEOUT 30
 
@@ -24,8 +27,9 @@
 #include <signal.h>
 #include <time.h>
 
+
+// Header structure for packet
 typedef struct {
-    // We assume that SYN=0, ACK=1, NAK=2, DATA=3, FIN=4
     uint8_t pack_type;
     uint16_t seq_num;
     uint16_t checksum;

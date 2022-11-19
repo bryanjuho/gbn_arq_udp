@@ -40,21 +40,19 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in clnt_addr;
 
     if (argc < 3) {
-        printf("Enter port and debugging true/false as arguments\n");
-        exit(1);
+        error_handling("Enter port and debugging true/false as arguments");
     }
 
     int port = atoi(argv[1]);
     int debug = strcmp(argv[2], "true") == 0;
 
-//    char message[BUF_SIZE];
     serv_sock = socket(PF_INET, SOCK_DGRAM, 0);
     if (serv_sock == -1)
         error_handling("UDP socket error");
 
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_addr.sin_addr.s_addr = inet_addr("203.252.112.26");
     serv_addr.sin_port = htons(port);
 
     if (bind(serv_sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) == -1)
@@ -107,16 +105,15 @@ int main(int argc, char *argv[]) {
                 // Write received data to file
                 fwrite(gbn_header->data, 1, gbn_header->data_len, fp);
 
-
                 gbn_header->pack_type = ACK;
                 gbn_header->seq_num = expected_seq_num;
                 sendto(serv_sock, gbn_header, sizeof(header), 0, (struct sockaddr *) &clnt_addr, sizeof(clnt_addr));
 
                 expected_seq_num++;
 
-                if (debug) {
+                if (debug)
                     printf("Received packet %d\n", gbn_header->seq_num);
-                }
+
             } else if (gbn_header->seq_num < expected_seq_num) {
                 printf("Received duplicate packet %d\n", gbn_header->seq_num);
 
@@ -134,6 +131,7 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
+
     fclose(fp);
     printf("File transfer complete.\n");
     close(serv_sock);

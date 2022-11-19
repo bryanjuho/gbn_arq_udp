@@ -54,12 +54,6 @@ void start_stop_timer(timer_t *_timerID, int value) {
     timer_settime(*_timerID, 0, &its, NULL);
 }
 
-int get_timer_expiration(timer_t *_timerID) {
-    struct itimerspec its;
-    timer_gettime(*_timerID, &its);
-    return its.it_value.tv_sec;
-}
-
 void error_handling(char *message) {
     fputs(message, stderr);
     fputc('\n', stderr);
@@ -123,14 +117,12 @@ int main(int argc, char *argv[]) {
         error_handling("Error: Received wrong type of packet\n");
     }
 
-    if (debug) {
+    if (debug)
         printf("Received ACK, Start file transfer...\n");
-    }
 
-    int last = 0;
-    // Send file
+    int is_last_packet = 0;
+    // Start timer and send packets
     init_timer(&timerID);
-
     while (1) {
         while (nextseqnum < base + window_size) {
             // Read file and get file size
@@ -143,10 +135,11 @@ int main(int argc, char *argv[]) {
                 if (file_size == 0) {
                     break;
                 }
-                last = 1;
+                is_last_packet = 1;
             }
 
-            printf("Sending packet %d, size %ld\n", nextseqnum, file_size);
+            if (debug)
+                printf("Sending packet %d, size %ld\n", nextseqnum, file_size);
 
             // Create packet
             gbn_header->pack_type = DATA;
@@ -167,20 +160,21 @@ int main(int argc, char *argv[]) {
             if (base == nextseqnum)
                 start_stop_timer(&timerID, TIMEOUT);
 
-            if (last) {
+            if (is_last_packet)
                 break;
-            }
+
             nextseqnum++;
         }
+
         // Receive ACK from server
         recvfrom(sock, gbn_header, sizeof(header), 0, (struct sockaddr *) &from_addr, &addr_size);
 
         // Check if ACK is for correct packet
         if (gbn_header->pack_type == ACK && gbn_header->seq_num >= base && gbn_header->seq_num < nextseqnum) {
 
-            if (debug) {
+            if (debug)
                 printf("Received ACK %d\n", gbn_header->seq_num);
-            }
+
 
             base = gbn_header->seq_num + 1;
 
@@ -190,9 +184,9 @@ int main(int argc, char *argv[]) {
                 start_stop_timer(&timerID, TIMEOUT);
             }
         } else {
-            if (debug) {
+            if (debug)
                 printf("Received wrong ACK %d\n", gbn_header->seq_num);
-            }
+
             sleep(1); // Debug
             base = 1;
             nextseqnum = 1;
@@ -200,52 +194,51 @@ int main(int argc, char *argv[]) {
 
         // if all packets sent and server ACKed all
         if (feof(fp) && base == nextseqnum) {
-
             // Wait for server to ACK last packet
-            if (debug) {
+            if (debug)
                 printf("Waiting for last ACK...\n");
-            }
+
 
             // Send EOT
             gbn_header->pack_type = FIN;
             sendto(sock, gbn_header, sizeof(header), 0, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-            if (debug) {
+            if (debug)
                 printf("Sent EOT\n");
-            }
 
             // Receive ACK
             recvfrom(sock, gbn_header, sizeof(header), 0, (struct sockaddr *) &from_addr, &addr_size);
-            if (gbn_header->pack_type != ACK) { // If not ACK
+            if (gbn_header->pack_type != ACK)  // If not ACK
                 error_handling("Error: Received wrong type of packet\n");
-            } else {
-                if (debug) {
+            else {
+                if (debug)
                     printf("Received File transfer complete ACK\n");
-                }
                 break;
             }
-
         }
 
         // Window slide with SWS arg
-        if (base == nextseqnum) {
-            window_size = sws;
-        } else {
-            window_size = sws - (nextseqnum - base);
-        }
+        window_size = base == nextseqnum ? sws : sws - (nextseqnum - base);
 
         //  If timeout
         if (timeout == 1) {
             start_stop_timer(&timerID, TIMEOUT);
-            // resend all pkts in window
-            for (int j = base; j < nextseqnum; j++) {
+
+            // resend packets from base to nextseqnum
+            for (int j = 0; j < nextseqnum; j++) {
                 // Read file
                 char *file_buf = malloc(BUF_SIZE);
 
+                // Skip until j is base
+                if (j < base) {
+                    fseek(fp, BUF_SIZE, SEEK_CUR);
+                    continue;
+                }
+
+                // Resume file transfer
                 fread(file_buf, 1, BUF_SIZE, fp);
 
-                if (feof(fp)) {
+                if (feof(fp))
                     break;
-                }
 
                 // Create packet
                 gbn_header->pack_type = DATA; // Send DATA
@@ -262,7 +255,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-
     }
 
     close(sock);
