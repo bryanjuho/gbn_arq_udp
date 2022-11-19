@@ -2,7 +2,8 @@
 // Juho Hong, Seungyong Lee
 // 2022/11/17
 // UDP Socket Program that uses GBN ARQ to receive file from client
-#include "header.h"
+
+#include "gbn.h"
 
 int validate_checksum(header *gbn_header) {
     uint16_t checksum_received = gbn_header->checksum;

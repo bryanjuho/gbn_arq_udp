@@ -4,7 +4,7 @@
 // UDP Socket Program that sends file to server
 
 // Uses GBN ARQ to handle packet loss
-#include "header.h"
+#include "gbn.h"
 
 #define FILE_NAME_SRC "input.docx"
 #define FILE_NAME_DEST "output.docx"
